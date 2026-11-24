@@ -53,6 +53,16 @@
   }
   button:active { transform: scale(.96); border-color: var(--cyan); }
   #sound { width: 44px; padding: 10px 0; }
+  .sw-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-top: 12px; padding: 10px 14px; border-radius: 12px; width: 100%;
+    background: rgba(77, 243, 255, .05); border: 1px solid var(--line); font-size: 13px;
+  }
+  .sw { position: relative; width: 50px; height: 28px; border-radius: 99px; background: #2a3158; transition: background .2s; flex: none; }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #e9f1ff; transition: transform .2s; }
+  .sw-row.on .sw { background: linear-gradient(100deg, var(--vio), var(--mag)); box-shadow: 0 0 12px rgba(255, 79, 216, .5); }
+  .sw-row.on .sw::after { transform: translateX(22px); }
+  .sw-state { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: .15em; color: var(--dim); margin-left: auto; }
   button.primary {
     border: 0; color: #fff; font-size: 17px; padding: 13px 28px; letter-spacing: .18em;
     background: linear-gradient(100deg, var(--vio), var(--mag));
@@ -446,6 +456,8 @@ function meow() { sfx.meow(); }
 function setMuted(m) {
   muted = m; localStorage.setItem('rollball_mute', m ? '1' : '0');
   $('sound').textContent = m ? '🔇' : '🔊';
+  const row = $('soundRow');
+  if (row) { row.classList.toggle('on', !m); row.querySelector('.sw-state').textContent = m ? 'OFF' : 'ON'; }
   if (master) master.gain.value = m ? 0 : 1;
 }
 
@@ -666,8 +678,11 @@ function showMenu() {
       };
     }),
     true,
+    '<button class="sw-row" id="soundRow"><span>🔊 サウンド</span><span class="sw-state"></span><span class="sw"></span></button>' +
     '<div class="note">PCでは 矢印キー / ドラッグ で操作</div>'
   );
+  $('soundRow').addEventListener('click', () => { audio(); setMuted(!muted); sfx.blip(); });
+  setMuted(muted);
 }
 function readyLevel(i) {
   loadLevel(i);
