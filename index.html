@@ -105,6 +105,7 @@
 const COLS = 12, ROWS = 18, R = 0.4;          // R = ボール半径
 const H = (y, x1, x2) => [x1, y - 0.25, x2 - x1, 0.5];   // 横の壁
 const V = (x, y1, y2) => [x - 0.25, y1, 0.5, y2 - y1];   // 縦の壁
+const MAX_MISS = 5;   // この回数ミスするとゲームオーバー（ステージごとに lives で変更可）
 const SIDE = {
   t: [0, 0, 12, 0.5], b: [0, 17.5, 12, 0.5], l: [0, 0, 0.5, 18], r: [11.5, 0, 0.5, 18],
 };
@@ -159,7 +160,7 @@ const LEVELS = [
   },
   {
     name: 'ねこのおうち',
-    tip: 'ねこが寝ているよ。近づくと起きて追いかけてくる！<br>つかまるとペシャンコ。壁を使ってまこう',
+    tip: 'ねこが寝ているよ。近づくと起きて追いかけてくる！<br>つかまるとペシャンコ。<br>ねこは疲れるとその場で寝ちゃう。うまく誘導しよう',
     start: [1.5, 16.5], goal: [10.5, 1.5],
     walls: [V(4, 4, 14), V(8, 4, 14)],
     holes: [[2, 9, .6], [10, 7, .6], [6, 15.6, .6], [6, 2.3, .6], [10, 11.5, .55]],
@@ -234,7 +235,7 @@ const LEVELS = [
   },
   {
     name: 'ふたりとねこ',
-    tip: 'がけ・ねこ・ボール2つ。<br>ねこはどっちのボールも狙ってくる！',
+    tip: 'がけ・ねこ・ボール2つ。<br>ねこは近いほうのボールを追いかけて、<br>疲れたらその場で寝ちゃうよ。<br>片方をおとりにしてみよう！',
     open: 'lr',
     balls: [{ start: [2, 16.5], goal: [9.5, 8.5] }, { start: [10, 16.5], goal: [2.5, 8.5] }],
     walls: [V(6, 6, 18), H(14, 2.5, 6), H(14, 6, 9.5)],
@@ -448,8 +449,8 @@ function loadLevel(i) {
     ...f, active: true, vis: 1, spin: 0, spd: 0,
     streaks: Array.from({ length: Math.round(f.len * f.w * 1.4) }, () => ({ a: Math.random() * f.len, c: (Math.random() - .5) * f.w })),
   }));
-  cats = (L.cats || []).map(c => ({ ...c, hx: c.x, hy: c.y, vx: 0, vy: 0, st: 'sleep', timer: 0, face: 1, retT: 0 }));
-  time = 0; clock = 0; misses = 0; particles = []; texts = [];
+  cats = (L.cats || []).map(c => ({ ...c, vx: 0, vy: 0, st: 'sleep', timer: 0, face: 1 }));
+  time = 0; clock = 0; misses = 0; hudLives = -1; particles = []; texts = [];
   const defs = L.balls || [{ start: L.start, goal: L.goal }];
   balls = defs.map((d, k) => ({
     start: d.start, goal: d.goal, pal: defs.length > 1 ? PALS[k % PALS.length] : PAL_SOLO,
@@ -464,7 +465,26 @@ function loadLevel(i) {
 function resetBall(b) {
   b.x = b.start[0]; b.y = b.start[1]; b.vx = b.vy = 0;
   b.sx = b.sy = 1; b.alpha = 1; b.inv = 0.8; b.fall = null;
-  for (const c of cats) if (c.st !== 'sleep') { c.st = 'return'; c.retT = 0; }
+}
+const maxMiss = () => L.lives || MAX_MISS;
+function addMiss(ball) {
+  resetBall(ball);
+  if (state !== 'play') return;
+  misses++;
+  if (misses >= maxMiss()) gameOver();
+}
+function gameOver() {
+  state = 'over';
+  tone(392, .25, 'triangle', .14); tone(330, .25, 'triangle', .14, null, .22); tone(262, .5, 'triangle', .14, null, .44);
+  vib([80, 60, 120]);
+  showCard(
+    `<h2>ゲームオーバー</h2>
+     <p>ミスが ${maxMiss()} 回になっちゃった…<br>ステージは最初からやりなおしだよ</p>`,
+    [
+      { label: 'もういちど', cls: 'primary', fn: () => readyLevel(level) },
+      { label: 'ステージせんたく', fn: showMenu },
+    ]
+  );
 }
 const liveBalls = () => balls.filter(b => !b.done && !b.fall);
 const bestKey = i => 'rollball_best_' + i;
@@ -473,7 +493,15 @@ function fmt(t) {
   const m = Math.floor(t / 60), s = Math.floor(t % 60), c = Math.floor((t * 100) % 100);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
 }
-function updateHud() { elTime.textContent = fmt(time); elMiss.textContent = `ミス ${misses}`; }
+let hudLives = -1;
+function updateHud() {
+  elTime.textContent = fmt(time);
+  const left = Math.max(0, maxMiss() - misses);
+  if (left !== hudLives) {   // のこりライフをハートで表示
+    hudLives = left;
+    elMiss.innerHTML = `<span style="color:#ff4d6d">${'♥'.repeat(left)}</span><span style="opacity:.2">${'♥'.repeat(maxMiss() - left)}</span>`;
+  }
+}
 
 function showCard(html, buttons, grid = false, footer = '') {
   card.innerHTML = html + `<div class="btns${grid ? ' grid' : ''}"></div>` + footer;
@@ -512,7 +540,7 @@ function readyLevel(i) {
   showCard(
     `<h2>STAGE ${i + 1}　${L.name}</h2>
      <p class="tip">${L.tip}</p>
-     <p class="note">持ちやすい角度でスタートを押してね<br>（その角度が水平になるよ）</p>`,
+     <p class="note">ミス ${maxMiss()} 回でゲームオーバー<br>持ちやすい角度でスタートを押してね（その角度が水平になるよ）</p>`,
     [{ label: 'スタート', cls: 'primary', fn: () => { calibrate(); hideCard(); state = 'play'; tone(660, .1, 'square', .08); tone(990, .15, 'square', .08, null, .1); } }]
   );
 }
@@ -671,7 +699,7 @@ function hitSpike(ball) {
     particles.push({ x: ball.x, y: ball.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .6, c: i % 2 ? '#ffd34d' : '#ffffff' });
   }
   tone(220, .25, 'sawtooth', .12, 60); vib([40, 30, 40]);
-  misses++; resetBall(ball);
+  addMiss(ball);
 }
 
 function updateEnemies(dt) {
@@ -744,18 +772,13 @@ function updateCats(dt) {
       case 'tired':
         c.vx *= .9; c.vy *= .9;
         if (c.timer <= 0) {
+          // おうちには帰らず、その場でまた寝る（＝誘導できる）
           if (active && d < c.wake) { c.st = 'alert'; c.timer = .5; meow(); texts.push({ x: c.x, y: c.y - .9, s: '!', life: .7, col: '#ff4d6d' }); }
-          else { c.st = 'return'; c.retT = 0; }
+          else c.st = 'sleep';
         }
         break;
       case 'pounce':
-        if (c.timer <= 0) { c.st = 'return'; c.retT = 0; }
-        break;
-      case 'return':
-        c.retT += dt;
-        moveCatToward(c, c.hx, c.hy, c.speed * .6, dt);
-        if (Math.hypot(c.hx - c.x, c.hy - c.y) < .2 || c.retT > 8) { c.x = c.hx; c.y = c.hy; c.st = 'sleep'; }
-        else if (active && d < c.wake * .8) { c.st = 'alert'; c.timer = .5; meow(); texts.push({ x: c.x, y: c.y - .9, s: '!', life: .7, col: '#ff4d6d' }); }
+        if (c.timer <= 0) { c.st = 'tired'; c.timer = c.rest; }
         break;
     }
   }
@@ -788,7 +811,7 @@ function animateFall(ball, dt) {
   if (fall.kind === 'squash') {
     const T = .7, u = Math.min(1, fall.t / T), e = Math.min(1, u * 4);
     ball.sx = 1 + .55 * e; ball.sy = 1 - .7 * e;
-    if (u >= 1) { misses++; resetBall(ball); }
+    if (u >= 1) { addMiss(ball); }
     return;
   }
   const T = fall.kind === 'edge' ? .55 : .45, u = Math.min(1, fall.t / T), e = u * u;
@@ -803,7 +826,7 @@ function animateFall(ball, dt) {
     return;
   }
   ball.sx = ball.sy = 1 - .65 * e; ball.alpha = 1 - e * .9;
-  if (u >= 1) { misses++; resetBall(ball); }
+  if (u >= 1) { addMiss(ball); }
 }
 
 // ===== 描画 =====
