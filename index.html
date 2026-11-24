@@ -110,16 +110,16 @@ const SIDE = {
   t: [0, 0, 12, 0.5], b: [0, 17.5, 12, 0.5], l: [0, 0, 0.5, 18], r: [11.5, 0, 0.5, 18],
 };
 
-const LEVELS = [
+const LEVEL_DEFS = [
   {
-    name: 'はじめのいっぽ',
+    id: 'basic', name: 'ころころデビュー', lives: 5,
     tip: 'スマホをかたむけて★まで運ぼう',
     start: [1.5, 16.5], goal: [1.6, 1.6],
     walls: [H(13, 0, 8), H(9, 4, 12), H(5, 0, 8)],
     holes: [[5, 15.3, .7], [6, 10.8, .7], [10, 11, .65], [6.5, 7.2, .7], [4.5, 2.9, .7]],
   },
   {
-    name: 'ジグザグ',
+    id: 'zigzag', name: 'あなぼこジグザグ', lives: 8,
     tip: '穴のあいだを細かくすり抜けよう',
     start: [1.5, 16.5], goal: [10.4, 16.4],
     walls: [V(3, 3, 18), V(6, 0, 15), V(9, 3, 18)],
@@ -127,7 +127,7 @@ const LEVELS = [
             [7, 12, .7], [8, 7, .7], [9.9, 6, .7], [11, 11, .7]],
   },
   {
-    name: 'トゲトゲ注意',
+    id: 'spikes', name: 'トゲトゲ鉄球', lives: 5,
     tip: '動くトゲ鉄球にさわるとミス！',
     start: [6, 16.6], goal: [6, 2.7],
     walls: [H(12, 0, 5), H(12, 7, 12), H(6, 2, 10)],
@@ -139,7 +139,7 @@ const LEVELS = [
     ],
   },
   {
-    name: 'ふちに注意',
+    id: 'edge', name: 'かべのない道', lives: 5,
     tip: '左右のふちに壁がないよ！<br>はみ出すと外に落ちてミス',
     open: 'lr',
     start: [6, 16.5], goal: [9.5, 2.2],
@@ -147,7 +147,7 @@ const LEVELS = [
     holes: [[9, 15.3, .7], [6, 11, .7], [5, 7, .7], [8.5, 6.4, .6], [6, 3, .65]],
   },
   {
-    name: 'そよかぜ',
+    id: 'fan', name: 'そよかぜのへや', lives: 5,
     tip: '扇風機の風でボールが流されるよ！<br>穴に押し込まれないように',
     start: [1.5, 16.5], goal: [10.5, 1.5],
     walls: [H(12.5, 0, 9), H(6.5, 3, 12)],
@@ -159,7 +159,7 @@ const LEVELS = [
     ],
   },
   {
-    name: 'ねこのおうち',
+    id: 'cat', name: 'ねこのおひるね', lives: 5,
     tip: 'ねこが寝ているよ。近づくと起きて追いかけてくる！<br>つかまるとペシャンコ。<br>ねこは疲れるとその場で寝ちゃう。うまく誘導しよう',
     start: [1.5, 16.5], goal: [10.5, 1.5],
     walls: [V(4, 4, 14), V(8, 4, 14)],
@@ -167,7 +167,7 @@ const LEVELS = [
     cats: [{ x: 6, y: 9, wake: 4.2, speed: 3.0, chase: 4.5, rest: 2.5 }],
   },
   {
-    name: 'がけっぷち',
+    id: 'cliff', name: 'がけっぷち', lives: 6,
     tip: '道はふちギリギリだけ。<br>落ちないように慎重に！',
     open: 'lr',
     start: [6, 16.5], goal: [6, 1.8],
@@ -177,7 +177,7 @@ const LEVELS = [
     enemies: [{ t: 'patrol', a: [2, 7], b: [10, 7], s: 2.5 }],
   },
   {
-    name: 'あらしの通路',
+    id: 'storm', name: 'きまぐれ扇風機', lives: 6,
     tip: '扇風機はときどき止まるよ。<br>ランプが<b style="color:#2a9d4b">緑</b>のときは風が出てる！',
     open: 'lr',
     start: [6, 16.5], goal: [6, 1.6],
@@ -190,7 +190,7 @@ const LEVELS = [
     ],
   },
   {
-    name: 'ねこまっしぐら',
+    id: 'cats2', name: 'ねこまっしぐら', lives: 5,
     tip: 'ねこが2ひき！トゲ鉄球もいるよ',
     start: [2, 1.8], goal: [10.4, 16.4],
     walls: [V(4, 0, 13), V(8, 5, 18)],
@@ -202,7 +202,7 @@ const LEVELS = [
     ],
   },
   {
-    name: 'さいごのしれん',
+    id: 'final', name: 'さいごのしれん', lives: 7,
     tip: 'ぜんぶ入り！ねこ・扇風機・トゲ・がけ。<br>がんばれ！',
     open: 'lr',
     start: [6, 16.6], goal: [6, 2.4],
@@ -220,21 +220,21 @@ const LEVELS = [
   },
   // ---- ここから 2つのボール（balls: 各ボールのスタートと専用ゴール） ----
   {
-    name: 'ふたごのボール',
+    id: 'twin', name: 'ふたごのボール', lives: 5,
     tip: 'ボールが2つ！<span style="color:#e8456a">ピンク</span>と<span style="color:#2f8fe0">ブルー</span>を<br>同じ色のゴールに入れよう。<br>ゴールしたボールはそこで待っててくれるよ',
     balls: [{ start: [1.5, 16.5], goal: [4.5, 1.5] }, { start: [10.5, 1.5], goal: [7.5, 16.5] }],
     walls: [V(6, 0, 18), H(12, 0, 4), H(6, 2, 6), H(6, 8, 12), H(12, 6, 10)],
     holes: [[3, 9, .55], [9, 9, .55], [2.2, 14.6, .5], [9.8, 3.4, .5]],
   },
   {
-    name: 'すれちがい',
+    id: 'cross', name: 'すれちがいの道', lives: 5,
     tip: '2つのボールが入れかわるよ。<br>ボール同士はぶつかるので気をつけて',
     balls: [{ start: [2, 16.5], goal: [10, 1.5] }, { start: [10, 16.5], goal: [2, 1.5] }],
     walls: [H(13, 3.5, 8.5), V(6, 5, 13), H(5, 0, 4.5), H(5, 7.5, 12)],
     holes: [[6, 15.3, .6], [3, 9, .55], [9, 9, .55], [6, 2.8, .6], [1.4, 11.5, .45], [10.6, 6.6, .45]],
   },
   {
-    name: 'ふたりとねこ',
+    id: 'lure', name: 'ねこをおびきよせろ', lives: 4,
     tip: 'がけ・ねこ・ボール2つ。<br>ねこは近いほうのボールを追いかけて、<br>疲れたらその場で寝ちゃうよ。<br>片方をおとりにしてみよう！',
     open: 'lr',
     balls: [{ start: [2, 16.5], goal: [9.5, 8.5] }, { start: [10, 16.5], goal: [2.5, 8.5] }],
@@ -243,6 +243,9 @@ const LEVELS = [
     cats: [{ x: 6, y: 2.4, wake: 3.4, speed: 2.9, chase: 4, rest: 2.5 }],
   },
 ];
+// ステージの並び（難易度順）。並べ替えはここを入れ替えるだけ
+const ORDER = ['basic', 'edge', 'fan', 'cat', 'twin', 'zigzag', 'spikes', 'cross', 'cliff', 'storm', 'cats2', 'lure', 'final'];
+const LEVELS = ORDER.map(id => LEVEL_DEFS.find(l => l.id === id));
 // ボールの色（1つだけのステージは銀＋金の★）
 const PAL_SOLO = { hi: '#ffffff', mid: '#dfe6ef', lo: '#7d8899', edge: '#4a5361', star: '#ffd84a', starLine: '#c98a10', rim: 'rgba(255,215,90,.8)' };
 const PALS = [
@@ -487,7 +490,7 @@ function gameOver() {
   );
 }
 const liveBalls = () => balls.filter(b => !b.done && !b.fall);
-const bestKey = i => 'rollball_best_' + i;
+const bestKey = i => 'rollball_best_' + LEVELS[i].id;
 const getBest = i => { const v = parseFloat(localStorage.getItem(bestKey(i))); return isFinite(v) ? v : null; };
 function fmt(t) {
   const m = Math.floor(t / 60), s = Math.floor(t % 60), c = Math.floor((t * 100) % 100);
