@@ -217,6 +217,36 @@ const LEVELS = [
     ],
     cats: [{ x: 9.5, y: 15.2, wake: 3.6, speed: 3.0, chase: 4, rest: 2.5 }],
   },
+  // ---- ここから 2つのボール（balls: 各ボールのスタートと専用ゴール） ----
+  {
+    name: 'ふたごのボール',
+    tip: 'ボールが2つ！<span style="color:#e8456a">ピンク</span>と<span style="color:#2f8fe0">ブルー</span>を<br>同じ色のゴールに入れよう。<br>ゴールしたボールはそこで待っててくれるよ',
+    balls: [{ start: [1.5, 16.5], goal: [4.5, 1.5] }, { start: [10.5, 1.5], goal: [7.5, 16.5] }],
+    walls: [V(6, 0, 18), H(12, 0, 4), H(6, 2, 6), H(6, 8, 12), H(12, 6, 10)],
+    holes: [[3, 9, .55], [9, 9, .55], [2.2, 14.6, .5], [9.8, 3.4, .5]],
+  },
+  {
+    name: 'すれちがい',
+    tip: '2つのボールが入れかわるよ。<br>ボール同士はぶつかるので気をつけて',
+    balls: [{ start: [2, 16.5], goal: [10, 1.5] }, { start: [10, 16.5], goal: [2, 1.5] }],
+    walls: [H(13, 3.5, 8.5), V(6, 5, 13), H(5, 0, 4.5), H(5, 7.5, 12)],
+    holes: [[6, 15.3, .6], [3, 9, .55], [9, 9, .55], [6, 2.8, .6], [1.4, 11.5, .45], [10.6, 6.6, .45]],
+  },
+  {
+    name: 'ふたりとねこ',
+    tip: 'がけ・ねこ・ボール2つ。<br>ねこはどっちのボールも狙ってくる！',
+    open: 'lr',
+    balls: [{ start: [2, 16.5], goal: [9.5, 8.5] }, { start: [10, 16.5], goal: [2.5, 8.5] }],
+    walls: [V(6, 6, 18), H(14, 2.5, 6), H(14, 6, 9.5)],
+    holes: [[2.5, 11.6, .55], [9.5, 11.6, .55], [4, 3.8, .5], [8, 3.8, .5], [4.3, 16, .45], [7.7, 16, .45]],
+    cats: [{ x: 6, y: 2.4, wake: 3.4, speed: 2.9, chase: 4, rest: 2.5 }],
+  },
+];
+// ボールの色（1つだけのステージは銀＋金の★）
+const PAL_SOLO = { hi: '#ffffff', mid: '#dfe6ef', lo: '#7d8899', edge: '#4a5361', star: '#ffd84a', starLine: '#c98a10', rim: 'rgba(255,215,90,.8)' };
+const PALS = [
+  { hi: '#fff0f3', mid: '#ff9fb3', lo: '#e8456a', edge: '#a3203f', star: '#ff7a93', starLine: '#b8324d', rim: 'rgba(255,122,147,.95)' },
+  { hi: '#eef8ff', mid: '#9fd3ff', lo: '#2f8fe0', edge: '#15589a', star: '#5cb8ff', starLine: '#1c6bb0', rim: 'rgba(92,184,255,.95)' },
 ];
 
 // ===== 要素 =====
@@ -228,9 +258,10 @@ const overlay = $('overlay'), card = $('card');
 // ===== 状態 =====
 let level = 0, L = LEVELS[0], walls = [], open = '';
 let state = 'menu';         // menu | ready | play | falling | clear
-let time = 0, clock = 0, misses = 0, inv = 0;
-const ball = { x: 0, y: 0, vx: 0, vy: 0, sx: 1, sy: 1, alpha: 1 };
-let fall = null;            // { kind: hole|goal|edge|squash, x, y, t, sx, sy }
+let time = 0, clock = 0, misses = 0;
+// ボール: { x, y, vx, vy, sx, sy, alpha, inv, start, goal, pal, done, fall }
+// fall = { kind: hole|goal|edge|squash, x, y, t, sx, sy }
+let balls = [];
 let enemies = [], fans = [], cats = [];
 let particles = [], texts = [];
 let anim = 0;
@@ -370,17 +401,17 @@ function buildLayers() {
   if (open.includes('b')) hazard(0, ROWS - .12, COLS, .12);
 
   // --- 穴 ---
-  const drawHole = (x, y, r, gold) => {
+  const drawHole = (x, y, r, rim) => {
     const g = b.createRadialGradient(x, y - r * .25, r * .1, x, y, r);
-    g.addColorStop(0, '#040201'); g.addColorStop(.75, '#140a05'); g.addColorStop(1, gold ? '#4b3410' : '#3b2213');
+    g.addColorStop(0, '#040201'); g.addColorStop(.75, '#140a05'); g.addColorStop(1, rim ? '#4b3410' : '#3b2213');
     b.fillStyle = g; b.beginPath(); b.arc(x, y, r, 0, Math.PI * 2); b.fill();
-    b.lineWidth = .07;
+    b.lineWidth = rim && balls.length > 1 ? .12 : .07;
     b.strokeStyle = 'rgba(20,8,2,.7)'; b.beginPath(); b.arc(x, y, r, Math.PI, Math.PI * 2); b.stroke();
-    b.strokeStyle = gold ? 'rgba(255,215,90,.8)' : 'rgba(255,215,170,.35)';
-    b.beginPath(); b.arc(x, y, r, 0, Math.PI); b.stroke();
+    b.strokeStyle = rim || 'rgba(255,215,170,.35)';
+    b.beginPath(); b.arc(x, y, r, 0, rim && balls.length > 1 ? Math.PI * 2 : Math.PI); b.stroke();
   };
-  for (const [x, y, r] of L.holes) drawHole(x, y, r, false);
-  drawHole(L.goal[0], L.goal[1], .62, true);
+  for (const [x, y, r] of L.holes) drawHole(x, y, r, null);
+  for (const bl of balls) drawHole(bl.goal[0], bl.goal[1], .62, bl.pal.rim);
 
   // --- 壁の影（床に落とす） ---
   b.save();
@@ -418,18 +449,24 @@ function loadLevel(i) {
     streaks: Array.from({ length: Math.round(f.len * f.w * 1.4) }, () => ({ a: Math.random() * f.len, c: (Math.random() - .5) * f.w })),
   }));
   cats = (L.cats || []).map(c => ({ ...c, hx: c.x, hy: c.y, vx: 0, vy: 0, st: 'sleep', timer: 0, face: 1, retT: 0 }));
-  time = 0; clock = 0; misses = 0; particles = []; texts = []; fall = null;
+  time = 0; clock = 0; misses = 0; particles = []; texts = [];
+  const defs = L.balls || [{ start: L.start, goal: L.goal }];
+  balls = defs.map((d, k) => ({
+    start: d.start, goal: d.goal, pal: defs.length > 1 ? PALS[k % PALS.length] : PAL_SOLO,
+    x: 0, y: 0, vx: 0, vy: 0, sx: 1, sy: 1, alpha: 1, inv: 0, done: false, fall: null,
+  }));
+  balls.forEach(resetBall);
   updateEnemies(0); updateFans(0);
-  resetBall();
   elStage.textContent = `STAGE ${i + 1}`;
   updateHud();
   buildLayers();
 }
-function resetBall() {
-  ball.x = L.start[0]; ball.y = L.start[1]; ball.vx = ball.vy = 0;
-  ball.sx = ball.sy = 1; ball.alpha = 1; inv = 0.8;
+function resetBall(b) {
+  b.x = b.start[0]; b.y = b.start[1]; b.vx = b.vy = 0;
+  b.sx = b.sy = 1; b.alpha = 1; b.inv = 0.8; b.fall = null;
   for (const c of cats) if (c.st !== 'sleep') { c.st = 'return'; c.retT = 0; }
 }
+const liveBalls = () => balls.filter(b => !b.done && !b.fall);
 const bestKey = i => 'rollball_best_' + i;
 const getBest = i => { const v = parseFloat(localStorage.getItem(bestKey(i))); return isFinite(v) ? v : null; };
 function fmt(t) {
@@ -538,9 +575,8 @@ function bounce(b, nx, ny, E) {
 }
 
 // ===== ミス・ゴール演出 =====
-function startFall(kind, x, y) {
-  state = 'falling';
-  fall = { kind, x, y, t: 0, sx: ball.x, sy: ball.y };
+function startFall(b, kind, x, y) {
+  b.fall = { kind, x, y, t: 0, sx: b.x, sy: b.y };
   if (kind === 'goal') tone(880, .3, 'sine', .12, 1760);
   else if (kind === 'squash') { tone(160, .2, 'square', .14, 60); vib([60, 30, 60]); texts.push({ x, y: y - .8, s: 'ペシャッ', life: 1 }); }
   else { tone(500, .45, 'sine', .14, 80); vib(60); }
@@ -564,54 +600,78 @@ function windAt(x, y) {
 
 function physics(dt) {
   const G = 38, SUB = 4, h = dt / SUB;
+  const live = liveBalls();
   for (let s = 0; s < SUB; s++) {
-    let ax = tilt.x * G, ay = tilt.y * G;
-    // 穴のふちでは中心へ引き込まれる
-    for (const [hx, hy, hr] of L.holes) {
-      const dx = hx - ball.x, dy = hy - ball.y, d = Math.hypot(dx, dy);
-      if (d < hr && d > 1e-4) { ax += dx / d * 22; ay += dy / d * 22; }
+    for (const ball of live) {
+      let ax = tilt.x * G, ay = tilt.y * G;
+      // 穴のふちでは中心へ引き込まれる
+      for (const [hx, hy, hr] of L.holes) {
+        const dx = hx - ball.x, dy = hy - ball.y, d = Math.hypot(dx, dy);
+        if (d < hr && d > 1e-4) { ax += dx / d * 22; ay += dy / d * 22; }
+      }
+      const [wx, wy] = windAt(ball.x, ball.y);
+      ax += wx; ay += wy;
+      ball.vx += ax * h; ball.vy += ay * h;
+      const damp = Math.exp(-0.9 * h); ball.vx *= damp; ball.vy *= damp;
+      const sp = Math.hypot(ball.vx, ball.vy), MAX = 22;
+      if (sp > MAX) { ball.vx *= MAX / sp; ball.vy *= MAX / sp; }
+      ball.x += ball.vx * h; ball.y += ball.vy * h;
+      for (const r of walls) knock(pushRect(ball, R, r, .35));
+      for (const f of fans) knock(pushCircle(ball, R, f.x, f.y, .42, .35));
+      // ちがう色のゴールはふさがっている
+      for (const o of balls) if (o !== ball) knock(pushCircle(ball, R, o.goal[0], o.goal[1], .5, .35));
     }
-    const [wx, wy] = windAt(ball.x, ball.y);
-    ax += wx; ay += wy;
-    ball.vx += ax * h; ball.vy += ay * h;
-    const damp = Math.exp(-0.9 * h); ball.vx *= damp; ball.vy *= damp;
-    const sp = Math.hypot(ball.vx, ball.vy), MAX = 22;
-    if (sp > MAX) { ball.vx *= MAX / sp; ball.vy *= MAX / sp; }
-    ball.x += ball.vx * h; ball.y += ball.vy * h;
-    for (const r of walls) knock(pushRect(ball, R, r, .35));
-    for (const f of fans) knock(pushCircle(ball, R, f.x, f.y, .42, .35));
+    // ボール同士の衝突
+    for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) collideBalls(live[i], live[j]);
   }
+  for (const ball of live) checkBall(ball);
+}
+
+function collideBalls(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+  if (d >= 2 * R || d < 1e-6) return;
+  const nx = dx / d, ny = dy / d, ov = (2 * R - d) / 2;
+  a.x -= nx * ov; a.y -= ny * ov; b.x += nx * ov; b.y += ny * ov;
+  const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+  if (rel >= 0) return;
+  const imp = -(1 + .6) * rel / 2;
+  a.vx -= nx * imp; a.vy -= ny * imp; b.vx += nx * imp; b.vy += ny * imp;
+  knock(-rel);
+}
+
+function checkBall(ball) {
   // ゴール
-  if (Math.hypot(L.goal[0] - ball.x, L.goal[1] - ball.y) < .62 - R * .3) return startFall('goal', L.goal[0], L.goal[1]);
+  const [gx, gy] = ball.goal;
+  if (Math.hypot(gx - ball.x, gy - ball.y) < .62 - R * .3) return startFall(ball, 'goal', gx, gy);
   // 穴
   for (const [hx, hy, hr] of L.holes) {
-    if (Math.hypot(hx - ball.x, hy - ball.y) < hr - R * .35) return startFall('hole', hx, hy);
+    if (Math.hypot(hx - ball.x, hy - ball.y) < hr - R * .35) return startFall(ball, 'hole', hx, hy);
   }
   // 盤の外へ
   const out = (open.includes('l') && ball.x < 0) ? [-1, 0] : (open.includes('r') && ball.x > COLS) ? [1, 0]
             : (open.includes('t') && ball.y < 0) ? [0, -1] : (open.includes('b') && ball.y > ROWS) ? [0, 1] : null;
-  if (out) return startFall('edge', ball.x + out[0] * 1.2, ball.y + out[1] * 1.2 + .6);
-  if (inv > 0) return;
+  if (out) return startFall(ball, 'edge', ball.x + out[0] * 1.2, ball.y + out[1] * 1.2 + .6);
+  if (ball.inv > 0) return;
   // トゲトゲ
   for (const e of enemies) {
-    if (Math.hypot(e.x - ball.x, e.y - ball.y) < R + .42) return hitSpike();
+    if (Math.hypot(e.x - ball.x, e.y - ball.y) < R + .42) return hitSpike(ball);
   }
   // ねこ
   for (const c of cats) {
     if (c.st === 'chase' && Math.hypot(c.x - ball.x, c.y - ball.y) < R + .42) {
       c.st = 'pounce'; c.timer = .9; c.x += (ball.x - c.x) * .4; c.y += (ball.y - c.y) * .4;
-      return startFall('squash', ball.x, ball.y);
+      return startFall(ball, 'squash', ball.x, ball.y);
     }
   }
 }
 
-function hitSpike() {
+function hitSpike(ball) {
   for (let i = 0; i < 18; i++) {
     const a = Math.random() * Math.PI * 2, v = 2 + Math.random() * 5;
     particles.push({ x: ball.x, y: ball.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .6, c: i % 2 ? '#ffd34d' : '#ffffff' });
   }
   tone(220, .25, 'sawtooth', .12, 60); vib([40, 30, 40]);
-  misses++; resetBall();
+  misses++; resetBall(ball);
 }
 
 function updateEnemies(dt) {
@@ -660,9 +720,13 @@ function moveCatToward(c, tx, ty, speed, dt) {
   if (Math.abs(c.vx) > .3) c.face = c.vx > 0 ? 1 : -1;
 }
 function updateCats(dt) {
-  const active = state === 'play' && inv <= 0;
+  const live = liveBalls();
   for (const c of cats) {
-    const d = Math.hypot(ball.x - c.x, ball.y - c.y);
+    // いちばん近いボールをねらう
+    let ball = null, d = Infinity;
+    for (const b of live) { const dd = Math.hypot(b.x - c.x, b.y - c.y); if (dd < d) { d = dd; ball = b; } }
+    const active = state === 'play' && ball && ball.inv <= 0;
+    if (!ball) ball = { x: c.x, y: c.y };
     c.timer -= dt;
     switch (c.st) {
       case 'sleep':
@@ -707,31 +771,39 @@ function update(dt) {
   for (const t of texts) { t.life -= dt; t.y -= dt * .6; }
   texts = texts.filter(t => t.life > 0);
 
-  if (state === 'play' || state === 'falling') {
+  if (state === 'play') {
     time += dt; clock += dt;
     updateEnemies(dt); updateFans(dt); updateCats(dt);
-  }
-  if (state === 'play') { inv -= dt; physics(dt); }
-  else if (state === 'falling') {
-    fall.t += dt;
-    if (fall.kind === 'squash') {
-      const T = .7, u = Math.min(1, fall.t / T), e = Math.min(1, u * 4);
-      ball.sx = 1 + .55 * e; ball.sy = 1 - .7 * e;
-      if (u >= 1) { misses++; resetBall(); state = 'play'; fall = null; }
-    } else {
-      const T = fall.kind === 'edge' ? .55 : .45, u = Math.min(1, fall.t / T), e = u * u;
-      ball.x = fall.sx + (fall.x - fall.sx) * Math.min(1, u * 2);
-      ball.y = fall.sy + (fall.y - fall.sy) * Math.min(1, u * 2);
-      ball.sx = ball.sy = 1 - .65 * e; ball.alpha = 1 - e * .9;
-      if (u >= 1) {
-        const goal = fall.kind === 'goal';
-        fall = null;
-        if (goal) clearLevel();
-        else { misses++; resetBall(); state = 'play'; }
-      }
-    }
+    for (const b of balls) b.inv -= dt;
+    physics(dt);
+    for (const b of balls) if (b.fall) animateFall(b, dt);
+    if (state === 'play' && balls.every(b => b.done)) clearLevel();
   }
   updateHud();
+}
+
+function animateFall(ball, dt) {
+  const fall = ball.fall;
+  fall.t += dt;
+  if (fall.kind === 'squash') {
+    const T = .7, u = Math.min(1, fall.t / T), e = Math.min(1, u * 4);
+    ball.sx = 1 + .55 * e; ball.sy = 1 - .7 * e;
+    if (u >= 1) { misses++; resetBall(ball); }
+    return;
+  }
+  const T = fall.kind === 'edge' ? .55 : .45, u = Math.min(1, fall.t / T), e = u * u;
+  ball.x = fall.sx + (fall.x - fall.sx) * Math.min(1, u * 2);
+  ball.y = fall.sy + (fall.y - fall.sy) * Math.min(1, u * 2);
+  if (fall.kind === 'goal') {
+    ball.sx = ball.sy = 1 - .3 * e;
+    if (u >= 1) {
+      ball.fall = null; ball.done = true; ball.vx = ball.vy = 0;
+      if (balls.some(b => !b.done)) { tone(1046, .18, 'triangle', .12); tone(1318, .22, 'triangle', .12, null, .08); vib(25); }
+    }
+    return;
+  }
+  ball.sx = ball.sy = 1 - .65 * e; ball.alpha = 1 - e * .9;
+  if (u >= 1) { misses++; resetBall(ball); }
 }
 
 // ===== 描画 =====
@@ -904,28 +976,41 @@ function render() {
   ctx.drawImage(boardC, 0, 0, COLS, ROWS);
 
   // ゴールの★
-  const [gx, gy] = L.goal, pulse = 1 + Math.sin(anim * 4) * .08;
-  const glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, .9);
-  glow.addColorStop(0, 'rgba(255,230,120,.55)'); glow.addColorStop(1, 'rgba(255,230,120,0)');
-  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(gx, gy, .9, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#ffd84a'; ctx.strokeStyle = '#c98a10'; ctx.lineWidth = .05;
-  drawStar(ctx, gx, gy, .38 * pulse, Math.sin(anim) * .2); ctx.fill(); ctx.stroke();
+  const pulse = 1 + Math.sin(anim * 4) * .08;
+  for (const b of balls) {
+    if (b.done) continue;
+    const [gx, gy] = b.goal, p = b.pal;
+    const glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, .9);
+    glow.addColorStop(0, p === PAL_SOLO ? 'rgba(255,230,120,.55)' : p.rim); glow.addColorStop(1, 'rgba(255,230,120,0)');
+    ctx.globalAlpha = p === PAL_SOLO ? 1 : .5;
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(gx, gy, .9, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = p.star; ctx.strokeStyle = p.starLine; ctx.lineWidth = .05;
+    drawStar(ctx, gx, gy, .38 * pulse, Math.sin(anim) * .2); ctx.fill(); ctx.stroke();
+  }
 
   // 風
   for (const f of fans) drawWind(ctx, f);
 
   // ボール
-  if (ball.alpha > 0) {
-    ctx.globalAlpha = ball.alpha * (inv > 0 && state === 'play' ? (Math.sin(anim * 30) > 0 ? 1 : .45) : 1);
-    if (state !== 'falling' || fall.kind === 'squash') {
+  for (const ball of balls) {
+    if (ball.alpha <= 0) continue;
+    const blink = !ball.done && !ball.fall && ball.inv > 0 && state === 'play';
+    ctx.globalAlpha = ball.alpha * (blink ? (Math.sin(anim * 30) > 0 ? 1 : .45) : 1);
+    if (!ball.done && (!ball.fall || ball.fall.kind === 'squash')) {
       ctx.fillStyle = 'rgba(30,12,2,.4)';
       ctx.beginPath(); ctx.ellipse(ball.x + .12, ball.y + .2, R * .95 * ball.sx, R * .7, 0, 0, Math.PI * 2); ctx.fill();
     }
+    const p = ball.pal;
     ctx.save(); ctx.translate(ball.x, ball.y); ctx.scale(ball.sx, ball.sy);
     const g = ctx.createRadialGradient(-R * .35, -R * .4, R * .05, 0, 0, R);
-    g.addColorStop(0, '#ffffff'); g.addColorStop(.35, '#dfe6ef'); g.addColorStop(.85, '#7d8899'); g.addColorStop(1, '#4a5361');
+    g.addColorStop(0, p.hi); g.addColorStop(.35, p.mid); g.addColorStop(.85, p.lo); g.addColorStop(1, p.edge);
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
+    if (ball.done && balls.length > 1) {   // ゴール済みのしるし
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = p.starLine; ctx.lineWidth = .04;
+      drawStar(ctx, ball.x, ball.y, .18 * pulse, 0); ctx.fill(); ctx.stroke();
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -971,7 +1056,7 @@ requestAnimationFrame(frame);
 
 window.__game = {
   get state() { return state; }, get L() { return L; }, get walls() { return walls; }, get open() { return open; },
-  get cats() { return cats; }, get fans() { return fans; }, ball, sensor, tilt, readyLevel, loadLevel, LEVELS,
+  get cats() { return cats; }, get fans() { return fans; }, get balls() { return balls; }, get ball() { return balls[0]; }, sensor, tilt, readyLevel, loadLevel, LEVELS,
   start() { hideCard(); state = 'play'; },
 };
 })();
